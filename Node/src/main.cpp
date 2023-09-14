@@ -3,6 +3,7 @@
 #include <ESP8266WebServer.h>
 #include <ArduinoJson.h>
 #include <SD.h>
+#include <SPI.h>
 
 const char *ssid = "one-legged pirate";
 const char *password = "qwert222";
@@ -52,7 +53,8 @@ void weather()
   }
 }
 
-void printDirectory(File dir, int numTabs) {
+String printDirectory(File dir, int numTabs) {
+  String res = "";
   while (true) {
 
     File entry =  dir.openNextFile();
@@ -61,19 +63,34 @@ void printDirectory(File dir, int numTabs) {
       break;
     }
     for (uint8_t i = 0; i < numTabs; i++) {
-      Serial.print('\t');
+      res+="\t";
     }
-    Serial.print(entry.name());
     if (entry.isDirectory()) {
-      Serial.println("/");
-      printDirectory(entry, numTabs + 1);
+      res += "/\n";
+      res += printDirectory(entry, numTabs + 1);
     } else {
       // files have sizes, directories do not
-      Serial.print("\t\t");
-      Serial.println(entry.size(), DEC);
+      res+="\t\t";
+      res+= String(entry.name()) + "\n";
     }
     entry.close();
   }
+  return res;
+}
+
+void serverPath()
+{
+  File root = SD.open("/");
+  String res = printDirectory(root, 0);
+  root.close();
+  server.send(200, "text/plain", res);
+}
+
+void getFile()
+{
+  File f = SD.open("test.txt", FILE_READ);
+  server.sendContent(f, f.size());
+  f.close();
 }
 
 void writeFile()
@@ -83,35 +100,33 @@ void writeFile()
   myfile.close();
 }
 
-File root;
 void setup()
 {
   Serial.begin(9600);
-  pinMode(LED_BUILTIN, OUTPUT);  
-  digitalWrite(LED_BUILTIN, HIGH);
+  delay(1000);
 
-  Serial.print("Initializing SD card...");
+  Serial.println("Initializing SD card...");
 
-  if (!SD.begin(15)) {
+  if (!SD.begin(D8)) {
     Serial.println("initialization failed!");
     return;
   }
   Serial.println("initialization done.");
 
-  writeFile();
+  //writeFile();
 
-  //root = SD.open("/");
-
-  //printDirectory(root, 0);
+  
 
   Serial.println("done!");
 
   WiFi.begin(ssid, password);
-  IPAddress apip = WiFi.softAPIP();
+  IPAddress apip = WiFi.localIP();
   Serial.print("visit: \n");
   Serial.println(apip);
   server.on("/", response);
   server.on("/weather", weather);
+  server.on("/path", serverPath);
+  server.on("/file", getFile);
   server.begin();
   Serial.println("HTTP server beginned");
 }
