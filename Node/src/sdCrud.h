@@ -53,7 +53,7 @@ bool move_file(String oldPath, String newPath)
   {
     f.close();
     String dirPath = newPath.substring(0, newPath.lastIndexOf("/"));
-    if(!SD.exists(dirPath))
+    if(newPath.lastIndexOf("/") >0 && !SD.exists(dirPath))
       create_dir(dirPath);
     return SD.rename(oldPath, newPath);
   }
