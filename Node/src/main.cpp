@@ -2,83 +2,22 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ArduinoJson.h>
-#include <SD.h>
 #include <SPI.h>
+#include <sdCrud.h>
 
 const char *ssid = "one-legged pirate";
 const char *password = "qwert222";
 
 ESP8266WebServer server(80);
-WiFiClient client;
 
-const char *weatherHost = "api.weatherapi.com";
+File activeFile;
 
-const String HtmlHtml = "<html>"
-                        "<head>"
-                        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" /></head>"
-                        "<body>"
-                        "<h1>hello from esp8266</h1>"
-                        "<button class='btn' onclick = 'click'>click me</button>"
-                        "</body>"
-                        "<style> .btn{color:red;} </style>";
-
-void response()
+String get_file_path()
 {
-  String htmlRes = HtmlHtml;
-
-  server.send(200, "text/html", htmlRes);
+  return server.arg("path");
 }
 
-void weather()
-{
-  if (client.connect(weatherHost, 80))
-  {
-    client.print(String("GET /v1/current.json?key=e757f625ce974ca0b0f212252230609&q=Moscow") + " HTTP/1.1\r\n" +
-                 "Host: " + weatherHost + "\r\n" +
-                 "\r\n");
-    String res = client.readString();
-    String json = res.substring(res.indexOf("{"), res.lastIndexOf("}") + 1);
-   //Serial.println(json);
-    StaticJsonDocument<1024> jsonDoc;
-    DeserializationError err = deserializeJson(jsonDoc, json);
-    //Serial.println(err.c_str());
-    client.stop();
-    float temp = jsonDoc["current"]["temp_c"];
-    //Serial.println(temp);
-    server.send(200, "text/html", "<H1>Temperature now: " + String(temp) + "</H1>");
-  }
-  else
-  {
-    server.send(200, "text/plain", "error");
-  }
-}
-
-String printDirectory(File dir, int numTabs) {
-  String res = "";
-  while (true) {
-
-    File entry =  dir.openNextFile();
-    if (! entry) {
-      // no more files
-      break;
-    }
-    for (uint8_t i = 0; i < numTabs; i++) {
-      res+="\t";
-    }
-    if (entry.isDirectory()) {
-      res += "/\n";
-      res += printDirectory(entry, numTabs + 1);
-    } else {
-      // files have sizes, directories do not
-      res+="\t\t";
-      res+= String(entry.name()) + "\n";
-    }
-    entry.close();
-  }
-  return res;
-}
-
-void serverPath()
+void get_directory()
 {
   File root = SD.open("/");
   String res = printDirectory(root, 0);
@@ -86,18 +25,73 @@ void serverPath()
   server.send(200, "text/plain", res);
 }
 
-void getFile()
+void get_file()
 {
-  File f = SD.open("test.txt", FILE_READ);
-  server.sendContent(f, f.size());
+  String path  = get_file_path();
+
+  File f = SD.open(path, FILE_READ);
+  if (!f.available())
+  {
+    server.send(404, "text/plain", "file not found");
+    return;
+  }
+
+  String dataType = "text/plain";
+
+    if (path.endsWith(".src")) {
+    path = path.substring(0, path.lastIndexOf("."));
+  } else if (path.endsWith(".htm")) {
+    dataType = "text/html";
+  } else if (path.endsWith(".css")) {
+    dataType = "text/css";
+  } else if (path.endsWith(".js")) {
+    dataType = "application/javascript";
+  } else if (path.endsWith(".png")) {
+    dataType = "image/png";
+  } else if (path.endsWith(".gif")) {
+    dataType = "image/gif";
+  } else if (path.endsWith(".jpg")) {
+    dataType = "image/jpeg";
+  } else if (path.endsWith(".ico")) {
+    dataType = "image/x-icon";
+  } else if (path.endsWith(".xml")) {
+    dataType = "text/xml";
+  } else if (path.endsWith(".pdf")) {
+    dataType = "application/pdf";
+  } else if (path.endsWith(".zip")) {
+    dataType = "application/zip";
+  }
+  Serial.print(server.streamFile(f, dataType));
   f.close();
 }
 
-void writeFile()
+void upload_file()
 {
-  File myfile = SD.open("test.txt", FILE_WRITE);
-  myfile.write("hello from esp8266");
-  myfile.close();
+  HTTPUpload &upload = server.upload();
+  if (upload.status == UPLOAD_FILE_START)
+  {
+    String path = get_file_path();
+    if(SD.exists(path))
+      SD.remove(path);
+    activeFile = SD.open(path, FILE_WRITE);
+  }
+    
+
+  if (upload.status == UPLOAD_FILE_WRITE)
+  {
+    activeFile.write(upload.buf, upload.currentSize);
+  }
+  if (upload.status == UPLOAD_FILE_END)
+    activeFile.close();
+}
+
+void returnOK() {
+  server.send(200, "text/plain", "");
+}
+
+void sendCode(int code)
+{
+  server.send(code, "text/plain", String("exit with code: ") + String(code));
 }
 
 void setup()
@@ -107,15 +101,12 @@ void setup()
 
   Serial.println("Initializing SD card...");
 
-  if (!SD.begin(D8)) {
+  if (!SD.begin(D8))
+  {
     Serial.println("initialization failed!");
     return;
   }
   Serial.println("initialization done.");
-
-  //writeFile();
-
-  
 
   Serial.println("done!");
 
@@ -123,10 +114,23 @@ void setup()
   IPAddress apip = WiFi.localIP();
   Serial.print("visit: \n");
   Serial.println(apip);
-  server.on("/", response);
-  server.on("/weather", weather);
-  server.on("/path", serverPath);
-  server.on("/file", getFile);
+
+  server.on("/path", get_directory);
+  server.on("/file", HTTP_GET, get_file);
+  server.on("/file",HTTP_POST,[]() {returnOK();}, upload_file);
+  server.on("/file", HTTP_PUT,[]() 
+  {
+    bool res = move_file(get_file_path(), server.arg("new path"));
+    if(res)
+      returnOK();
+    sendCode(400);
+  });
+  server.on("/file", HTTP_DELETE,[]() 
+  {
+    if(delete_file(get_file_path()))
+      returnOK();
+    sendCode(400);
+  });
   server.begin();
   Serial.println("HTTP server beginned");
 }
@@ -135,4 +139,3 @@ void loop()
 {
   server.handleClient();
 }
-
