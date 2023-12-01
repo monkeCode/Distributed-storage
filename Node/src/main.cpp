@@ -117,6 +117,16 @@ void setup()
 
   server.on("/path", get_directory);
   server.on("/file", HTTP_GET, get_file);
+  server.on("/mem", HTTP_GET, []()
+  {
+    String s = String(get_total_space());
+    server.send(200, "text/plain", s);
+  } );
+  server.on("/memfree", HTTP_GET, []()
+  {
+    String s = String(get_free_space());
+    server.send(200, "text/plain", s);
+  });
   server.on("/file",HTTP_POST,[]() {returnOK();}, upload_file);
   server.on("/file", HTTP_PUT,[]() 
   {
