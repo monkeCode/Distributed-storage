@@ -1,27 +1,39 @@
-#include <SD.h>
+#include <SdFat.h>
 
-int get_total_space()
+SdFat SD;
+
+String get_file_name(File32 file)
 {
-  return SD.size();
+
+  char* buf = new char[20];
+  file.getName(buf,20);
+  String name = String(buf);
+  delete[] buf;
+  return name;
 }
 
-int get_free_space()
+long get_total_space()
 {
-  return get_total_space() - SD.clusterSize()* SD.totalClusters();
+  return SD.clusterCount() * SD.vol()->sectorsPerCluster()/2;
 }
+
+long get_free_space()
+{
+  return SD.vol() -> freeClusterCount() * SD.vol()->sectorsPerCluster()/2;
+  }
 
 bool create_dir(String path)
 {
   return SD.mkdir(path);
 }
 
-String printDirectory(File dir, int numTabs)
+String printDirectory(File32 dir, int numTabs)
 {
   String res = "";
   while (true)
   {
 
-    File entry = dir.openNextFile();
+    File32 entry = dir.openNextFile();
     if (!entry)
     {
       // no more files
@@ -33,13 +45,13 @@ String printDirectory(File dir, int numTabs)
     }
     if (entry.isDirectory())
     {
-      res += "/"+ String(entry.name()) +"\n";
+      res += "/"+ get_file_name(entry) +"\n";
       res += printDirectory(entry, numTabs + 1);
     }
     else
     {
       res += "- ";
-      res += String(entry.name()) + "\n";
+      res += get_file_name(entry) + "\n";
     }
     entry.close();
   }
@@ -48,7 +60,7 @@ String printDirectory(File dir, int numTabs)
 
 bool move_file(String oldPath, String newPath)
 {
-  File f = SD.open(oldPath, FILE_READ);
+  File32 f = SD.open(oldPath, FILE_READ);
   if(f.available())
   {
     f.close();
@@ -66,7 +78,7 @@ bool delete_file(String path)
   if(!SD.exists(path))
     return true;
 
-  File f = SD.open(path, FILE_READ);
+  File32 f = SD.open(path, FILE_READ);
   if(!f.isDirectory())
   {
     f.close();
@@ -76,13 +88,13 @@ bool delete_file(String path)
   f.rewindDirectory();
   while (true) 
   {
-    File entry = f.openNextFile();
+    File32 entry = f.openNextFile();
     
     if (!entry) 
     {
       break;
     }
-    String entryPath = path + "/" + entry.name();
+    String entryPath = path + "/" + get_file_name(entry);
     if (entry.isDirectory()) 
     {
       entry.close();

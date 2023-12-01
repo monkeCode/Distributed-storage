@@ -10,7 +10,7 @@ const char *password = "qwert222";
 
 ESP8266WebServer server(80);
 
-File activeFile;
+File32 activeFile;
 
 String get_file_path()
 {
@@ -19,7 +19,7 @@ String get_file_path()
 
 void get_directory()
 {
-  File root = SD.open("/");
+  File32 root = SD.open("/");
   String res = printDirectory(root, 0);
   root.close();
   server.send(200, "text/plain", res);
@@ -29,7 +29,7 @@ void get_file()
 {
   String path  = get_file_path();
 
-  File f = SD.open(path, FILE_READ);
+  File32 f = SD.open(path, FILE_READ);
   if (!f.available())
   {
     server.send(404, "text/plain", "file not found");
