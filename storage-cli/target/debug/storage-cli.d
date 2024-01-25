@@ -1,1 +1,0 @@
-C:\Users\georg\OneDrive\Документы\PlatformIO\Projects\Test\storage-cli\target\debug\storage-cli.exe: C:\Users\georg\OneDrive\Документы\PlatformIO\Projects\Test\storage-cli\src\lib.rs C:\Users\georg\OneDrive\Документы\PlatformIO\Projects\Test\storage-cli\src\main.rs
