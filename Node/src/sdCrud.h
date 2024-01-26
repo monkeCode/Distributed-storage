@@ -1,39 +1,53 @@
-#include <SdFat.h>
+#include <SD.h>
+#include <SPI.h>
 
-SdFat SD;
-
-String get_file_name(File32 file)
+uint64_t get_size(File file)
 {
-
-  char* buf = new char[20];
-  file.getName(buf,20);
-  String name = String(buf);
-  delete[] buf;
-  return name;
-}
-
-long get_total_space()
-{
-  return SD.clusterCount() * SD.vol()->sectorsPerCluster()/2;
-}
-
-long get_free_space()
-{
-  return SD.vol() -> freeClusterCount() * SD.vol()->sectorsPerCluster()/2;
+  if(file.isDirectory())
+  {
+     uint64_t size = 0;
+    while(true)
+    {
+      File f = file.openNextFile();
+      if(!f)
+        return size;
+      size += get_size(f);
+      f.close();
+    }
   }
+    return file.size();
+}
+
+String get_file_name(File file)
+{
+  return String(file.name());
+}
+
+uint64_t get_total_space()
+{
+  return SD.size64();
+}
+
+uint64_t get_free_space()
+{
+  File f = SD.open("/");
+  uint64_t size = get_size(f);
+  f.close();
+  return get_total_space() - size;
+}
 
 bool create_dir(String path)
 {
   return SD.mkdir(path);
 }
 
-String printDirectory(File32 dir, int numTabs)
+String printDirectory(File dir, int numTabs)
 {
   String res = "";
   while (true)
   {
 
-    File32 entry = dir.openNextFile();
+    File entry = dir.openNextFile();
     if (!entry)
     {
       // no more files
@@ -45,13 +59,14 @@ String printDirectory(File32 dir, int numTabs)
     }
     if (entry.isDirectory())
     {
-      res += "/"+ get_file_name(entry) +"\n";
+      res += "/"+ get_file_name(entry) + "\n";
       res += printDirectory(entry, numTabs + 1);
     }
     else
     {
       res += "- ";
-      res += get_file_name(entry) + "\n";
+      size_t s = entry.size();
+      res += get_file_name(entry) +" "+ s +" bytes" + "\n";
     }
     entry.close();
   }
@@ -60,7 +75,7 @@ String printDirectory(File32 dir, int numTabs)
 
 bool move_file(String oldPath, String newPath)
 {
-  File32 f = SD.open(oldPath, FILE_READ);
+  File f = SD.open(oldPath, FILE_READ);
   if(f.available())
   {
     f.close();
@@ -78,7 +93,7 @@ bool delete_file(String path)
   if(!SD.exists(path))
     return true;
 
-  File32 f = SD.open(path, FILE_READ);
+  File f = SD.open(path, FILE_READ);
   if(!f.isDirectory())
   {
     f.close();
@@ -88,7 +103,7 @@ bool delete_file(String path)
   f.rewindDirectory();
   while (true) 
   {
-    File32 entry = f.openNextFile();
+    File entry = f.openNextFile();
     
     if (!entry) 
     {

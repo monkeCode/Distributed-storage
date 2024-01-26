@@ -1,3 +1,14 @@
 {
-    "cmake.sourceDirectory": "/home/gera/code/Distributed-storage/Node/.pio/libdeps/nodemcuv2/ArduinoJson/src"
+    "cmake.sourceDirectory": "C:/Users/georg/OneDrive/Документы/PlatformIO/Projects/Test/Node/.pio/libdeps/nodemcuv2/ArduinoJson/src",
+    "files.associations": {
+        "array": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "ranges": "cpp"
+    }
 }
