@@ -2,26 +2,149 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <SPI.h>
-#include <sdCrud.h>
+#include "sdCrud.h"
+#include "codes.h"
 #include <ArduinoJson.h>
-
+#include "Arduino.h"
+#include <Wire.h>                       // Подключение библиотеки Wire
+#include <Adafruit_GFX.h>               // Подключение библиотеки Adafruit_GFX
+#include <Adafruit_SSD1306.h>           // Подключение библиотеки Adafruit_SSD1306
+#define WIRE Wire
 ESP8266WebServer server(80);
+
+Adafruit_SSD1306 display(128, 32, &WIRE);
 
 File activeFile;
 
 const String CONFIG_PATH = "/.storage/config";
+
+String get_content_type(String &path)
+{
+  String dataType = "text/plain";
+  if (path.endsWith(".src"))
+  {
+    path = path.substring(0, path.lastIndexOf("."));
+  }
+  else if (path.endsWith(".htm"))
+  {
+    dataType = "text/html";
+  }
+  else if (path.endsWith(".css"))
+  {
+    dataType = "text/css";
+  }
+  else if (path.endsWith(".js"))
+  {
+    dataType = "application/javascript";
+  }
+  else if (path.endsWith(".png"))
+  {
+    dataType = "image/png";
+  }
+  else if (path.endsWith(".gif"))
+  {
+    dataType = "image/gif";
+  }
+  else if (path.endsWith(".jpg"))
+  {
+    dataType = "image/jpeg";
+  }
+  else if (path.endsWith(".ico"))
+  {
+    dataType = "image/x-icon";
+  }
+  else if (path.endsWith(".xml"))
+  {
+    dataType = "text/xml";
+  }
+  else if (path.endsWith(".pdf"))
+  {
+    dataType = "application/pdf";
+  }
+  else if (path.endsWith(".zip"))
+  {
+    dataType = "application/zip";
+  }
+  return dataType;
+}
+
+void load_config(String& ssid, String& pas)
+{
+  File f = SD.open(CONFIG_PATH);
+  ssid = f.readStringUntil('\n');
+  pas = f.readStringUntil('\n');
+  String ip = f.readStringUntil('\n');
+  String gateway = f.readStringUntil('\n');
+  IPAddress mask = IPAddress(255, 255, 255, 0);
+  IPAddress ip_a;
+  IPAddress gateway_a;
+  ip_a.fromString(ip);
+  gateway_a.fromString(gateway);
+
+  WiFi.config(ip_a, gateway_a, mask);
+  wl_status_t status = WiFi.begin(ssid, pas);
+  switch (status)
+  {
+  case WL_NO_SSID_AVAIL:
+    Serial.print("Wifi not found");
+
+    break;
+  case WL_WRONG_PASSWORD:
+    Serial.printf("Wrong password");
+  case WL_CONNECT_FAILED:
+    Serial.printf("Connection failed");
+    break;
+  }
+
+  if (status != WL_NO_SSID_AVAIL && status != WL_WRONG_PASSWORD && status != WL_CONNECT_FAILED)
+    Serial.printf("config loaded\n%s\n%s\n", ssid.c_str(), pas.c_str());
+  else
+  {
+    SD.remove(CONFIG_PATH);
+    ESP.restart();
+  }
+}
+
+void send_code(HttpCodes code, String message = "")
+{
+  if (message == "" && int(code) >= 400)
+    server.send(int(code), "text/plain", String("exit with code: ") + String(int(code)));
+  else
+  {
+    server.send(int(code), "text/plain", message);
+  }
+}
 
 String get_file_path()
 {
   return server.arg("path");
 }
 
-void get_directory()
+/// @brief return json serialized string
+/// @param path root path of tree
+/// @param depth max depth of tree
+
+void get_directory(String path ="/", unsigned int depth = 5)
 {
-  File root = SD.open("/");
-  String res = printDirectory(root, 0);
+  if(!SD.exists(path))
+  {
+    send_code(HttpCodes::BAD_REQUEST, "bad path");
+    return;
+  }
+  File root = SD.open(path);
+  if(root.isFile())
+  {
+    send_code(HttpCodes::BAD_REQUEST, "its file");
+    return;
+  }
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.to<JsonArray>();
+  sdApi::printDirectory(arr, root, 0, depth);
   root.close();
-  server.send(200, "text/plain", res);
+  String res;
+  serializeJson(doc, res);
+  doc.clear();
+  server.send(OK, "application/json", res);
 }
 
 void get_file()
@@ -35,31 +158,7 @@ void get_file()
     return;
   }
 
-  String dataType = "text/plain";
-
-    if (path.endsWith(".src")) {
-    path = path.substring(0, path.lastIndexOf("."));
-  } else if (path.endsWith(".htm")) {
-    dataType = "text/html";
-  } else if (path.endsWith(".css")) {
-    dataType = "text/css";
-  } else if (path.endsWith(".js")) {
-    dataType = "application/javascript";
-  } else if (path.endsWith(".png")) {
-    dataType = "image/png";
-  } else if (path.endsWith(".gif")) {
-    dataType = "image/gif";
-  } else if (path.endsWith(".jpg")) {
-    dataType = "image/jpeg";
-  } else if (path.endsWith(".ico")) {
-    dataType = "image/x-icon";
-  } else if (path.endsWith(".xml")) {
-    dataType = "text/xml";
-  } else if (path.endsWith(".pdf")) {
-    dataType = "application/pdf";
-  } else if (path.endsWith(".zip")) {
-    dataType = "application/zip";
-  }
+  String dataType = get_content_type(path);
   Serial.print(server.streamFile(f, dataType));
   f.close();
 }
@@ -84,22 +183,19 @@ void upload_file()
     activeFile.close();
 }
 
-void returnOK() {
-  server.send(200, "text/plain", "");
-}
-
-void sendCode(int code)
-{
-  server.send(code, "text/plain", String("exit with code: ") + String(code));
-}
-
 void setup()
 {
   Serial.begin(9600);
   delay(1000);
+  
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3c);
+
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+  display.display();                       
 
   Serial.println("Initializing SD card...");
-  if (!SD.begin(D8, 500000))
+  if (!sdApi::begin())
   {
     Serial.println("initialization failed!");
     return;
@@ -113,49 +209,25 @@ void setup()
 
   if(!SD.exists(CONFIG_PATH))
   {
-    Serial.printf("config doesnt exists\n %s\n%s ", ssid.c_str(), pas.c_str());
+    Serial.printf("config doesnt exists\n%s\n%s ", ssid.c_str(), pas.c_str());
     WiFi.softAP(ssid, pas);
     WiFi.softAPConfig(IPAddress(192,168,20,1), IPAddress(192,168,20,1), IPAddress(255,255,255,0));
   }
   else
   {
-    File f = SD.open(CONFIG_PATH);
-    ssid = f.readStringUntil('\n');
-    pas = f.readStringUntil('\n');
-    String ip = f.readStringUntil('\n');
-    String gateway = f.readStringUntil('\n');
-    IPAddress mask = IPAddress(255,255,255,0);
-    IPAddress ip_a;
-    IPAddress gateway_a;
-    ip_a.fromString(ip);
-    gateway_a.fromString(gateway);
-
-    WiFi.config(ip_a, gateway_a, mask);
-    wl_status_t status =  WiFi.begin(ssid, "qwert222");
-    switch(status)
-    {
-    case WL_NO_SSID_AVAIL:
-      Serial.print("Wifi not found");
-
-      break;
-    case WL_WRONG_PASSWORD:
-      Serial.printf("Wrong password");
-    case WL_CONNECT_FAILED:
-      Serial.printf("Connection failed");
-      break;
-    }
-
-    if(status != WL_NO_SSID_AVAIL && status != WL_WRONG_PASSWORD && status != WL_CONNECT_FAILED)
-      Serial.printf("config loaded\n %s\n%s\n", ssid.c_str(), pas.c_str());
-    else
-    {
-      SD.remove(CONFIG_PATH);
-      ESP.restart();
-    }
+    load_config(ssid, pas);
   }
   
-
-  server.on("/path", get_directory);
+  display.printf("ssid: %s\n", ssid.c_str());
+  //display.setCursor(0,10);
+  display.printf("ip: %s\n", WiFi.localIP().toString().c_str());
+  display.display();
+  
+  server.on("/tree", []() {
+    String path = server.hasArg("path")?server.arg("path"):"/";
+    int depth = server.hasArg("depth")?server.arg("depth").toInt():5;
+    get_directory(path, depth);
+    });
 
   server.on("/config",HTTP_POST, []()
   {
@@ -183,7 +255,7 @@ void setup()
       f.write((ip + "\n").c_str());
       f.write((gateway + "\n").c_str());
       f.close();
-      returnOK();
+      send_code(HttpCodes::OK);
       delay(1000);
       ESP.restart();
   });
@@ -202,8 +274,8 @@ void setup()
   server.on("/file", HTTP_GET, get_file);
   server.on("/mem", HTTP_GET, []()
   {
-    uint64_t total = get_total_space();
-    uint64_t free = get_free_space();
+    uint64_t total = sdApi::get_total_space();
+    uint64_t free = sdApi::get_free_space();
     DynamicJsonDocument doc(256);
     doc["total"] = total;
     doc["free"] = free;
@@ -212,23 +284,24 @@ void setup()
     server.send(200, "application/json", s);
   } );
 
-  server.on("/file",HTTP_POST,[]() {returnOK();}, upload_file);
+  server.on("/file",HTTP_POST,[]() {send_code(HttpCodes::OK);}, upload_file);
   server.on("/file", HTTP_PUT,[]() 
   {
-    bool res = move_file(get_file_path(), server.arg("new path"));
+    bool res = sdApi::move_file(get_file_path(), server.arg("new path"));
     if(res)
-      returnOK();
-    sendCode(400);
+      send_code(HttpCodes::OK);
+    send_code(HttpCodes::BAD_REQUEST);
   });
   server.on("/file", HTTP_DELETE,[]() 
   {
-    if(delete_file(get_file_path()))
-      returnOK();
-    sendCode(400);
+    if(sdApi::delete_file(get_file_path()))
+      send_code(HttpCodes::OK);
+    send_code(HttpCodes::BAD_REQUEST);
   });
   server.begin();
   Serial.println("HTTP server beginned");
 }
+
 
 void loop()
 {
