@@ -2,7 +2,6 @@ mod lib;
 mod config;
 use std::{net::Ipv4Addr, str::FromStr};
 use lib::{Info, MemoryInfo};
-use tokio;
 use clap::{Parser, Subcommand};
 use config::Config;
 
@@ -91,8 +90,8 @@ enum FileCommands
     }
 }
 
-#[tokio::main]
-async fn main() {
+
+fn main() {
     let args = Args::parse();
     let config = Config::load();
     let command = &args.command;
@@ -106,7 +105,7 @@ async fn main() {
                 if let Ok(ip) = Ipv4Addr::from_str(ip_address.as_ref().unwrap())
                 {
 
-                    info = lib::info(&ip).await;
+                    info = lib::info(&ip);
                 }
                 else
                 {
@@ -116,7 +115,7 @@ async fn main() {
             } 
             else 
             {
-                info = lib::info(&config.default_ip).await;
+                info = lib::info(&config.default_ip);
             }
             match info {
                 Ok(res) => println!("{:#?}", res),
@@ -133,7 +132,7 @@ async fn main() {
                 if let Ok(ip) = Ipv4Addr::from_str(ip_address.as_ref().unwrap())
                 {
 
-                    info = lib::memory(&ip).await;
+                    info = lib::memory(&ip);
                 }
                 else
                 {
@@ -143,7 +142,7 @@ async fn main() {
             } 
             else 
             {
-                info = lib::memory(&config.default_ip).await;
+                info = lib::memory(&config.default_ip);
             }
             match info {
                 Ok(res) => 
@@ -162,7 +161,7 @@ async fn main() {
                 if let Ok(ip) = Ipv4Addr::from_str(ip_address.as_ref().unwrap())
                 {
 
-                    let res = lib::post_config_from_file(&ip, &config).await;
+                    let res = lib::post_config_from_file(&ip, &config);
                     if res.is_err()
                     {
                         println!("{}", res.unwrap_err());
@@ -214,7 +213,7 @@ async fn main() {
 
                 FileCommands::Post { local_path, device_path } =>
                 {
-                    match lib::post_file(&ip, local_path, device_path).await {
+                    match lib::post_file(&ip, local_path, device_path) {
                         Ok(()) => {
                             println!("file sended");
                             return;
