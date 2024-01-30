@@ -1,7 +1,7 @@
 
 use std::{error::Error, fs, net::Ipv4Addr, str::FromStr};
 use::reqwest;
-use reqwest::{Body, Error as ReqError};
+use reqwest::{Error as ReqError};
 use serde_json;
 use serde::Deserialize;
 use reqwest::blocking::multipart;
@@ -9,20 +9,17 @@ use reqwest::blocking::multipart;
 #[derive(Debug)]
 pub enum DeviceType {
     Node,
-    Master
+    Master,
 }
 
 impl DeviceType {
-    pub fn from_str(s: &str) -> DeviceType
-    {
-        match s
-        {
+    pub fn from_str(s: &str) -> DeviceType {
+        match s {
             "node" => DeviceType::Node,
             "master" => DeviceType::Master,
-            _ => panic!("device type not found")
+            _ => panic!("device type not found"),
         }
     }
-
 }
 
 #[derive(Debug)]
