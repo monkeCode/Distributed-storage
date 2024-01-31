@@ -144,7 +144,7 @@ void get_directory(String path ="/", unsigned int depth = 5)
   String res;
   serializeJson(doc, res);
   doc.clear();
-  server.send(OK, "application/json", res);
+  server.send((int)HttpCodes::OK, "application/json", res);
 }
 
 void get_file()
@@ -154,7 +154,7 @@ void get_file()
   File f = SD.open(path, FILE_READ);
   if (!f.available())
   {
-    server.send(404, "text/plain", "file not found");
+    send_code(HttpCodes::NOT_FOUND, "file not found");
     return;
   }
 
@@ -188,11 +188,7 @@ void setup()
   Serial.begin(9600);
   delay(1000);
   
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3c);
-
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.display();                       
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3c);                      
 
   Serial.println("Initializing SD card...");
   if (!sdApi::begin())
@@ -218,10 +214,16 @@ void setup()
     load_config(ssid, pas);
   }
   
-  display.printf("ssid: %s\n", ssid.c_str());
-  //display.setCursor(0,10);
-  display.printf("ip: %s\n", WiFi.localIP().toString().c_str());
-  display.display();
+  if(display.begin(SSD1306_SWITCHCAPVCC, 0x3c))
+  {
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.printf("ssid: %s\n", ssid.c_str());
+    display.printf("ip: %s\n", WiFi.localIP().toString().c_str());
+    display.println("type: node");
+    display.display();
+  }
+  
   
   server.on("/tree", []() {
     String path = server.hasArg("path")?server.arg("path"):"/";

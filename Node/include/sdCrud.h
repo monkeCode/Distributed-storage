@@ -1,5 +1,6 @@
 #include <SD.h>
 #include <ArduinoJson.h>
+#include <ctime>
 
 namespace sdApi
 {
@@ -60,13 +61,21 @@ namespace sdApi
       obj["creatonDate"] = entry.getCreationTime();
       obj["size"] = entry.size();
 
-      if (entry.isDirectory() && numTabs < max_depth)
+      if (entry.isDirectory())
       {
+        if(numTabs < max_depth)
+        {
           DynamicJsonDocument files(2048);
           JsonArray arr = files.to<JsonArray>();
           printDirectory(arr, entry, numTabs + 1, max_depth);
           files.shrinkToFit();
           obj["files"] = files;
+        }
+        else
+        {
+          DynamicJsonDocument emp(2);
+          obj["files"] = emp.to<JsonArray>();
+        }
       }
       obj.shrinkToFit();
       doc.add(obj);

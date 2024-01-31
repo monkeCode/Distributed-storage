@@ -1,9 +1,10 @@
 mod lib;
 mod config;
-use std::{net::Ipv4Addr, str::FromStr};
-use lib::{Info, MemoryInfo};
+use std::{array::from_mut, net::Ipv4Addr, str::FromStr};
+use lib::{FileStruct, Info, MemoryInfo};
 use clap::{Parser, Subcommand};
 use config::Config;
+use serde_json::de;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -30,7 +31,7 @@ enum Commands{
     {
         ///ip address of device
         #[arg(short, long)]
-        ip_address:Option<String>,
+        ip_address:String,
 
         ///config path
         config:String
@@ -55,6 +56,12 @@ enum Commands{
 
         ///root folder of tree
         path:Option<String>
+    },
+    Ls
+    {
+        #[arg(short, long)]
+        ip_address:Option<String>,
+        path:String
     },
     File
     {
@@ -90,6 +97,49 @@ enum FileCommands
     }
 }
 
+fn print_directory(files:&Vec<&FileStruct>, previous:&str )
+{
+    for i in 0..files.len()
+    {
+        print!("{}", previous);
+        let f = files[i];
+        if i == files.len()-1
+            {
+                print!("└──");
+            }
+            else {
+                print!("├──");
+            }
+        
+        if f.is_directory
+        {
+           println!("{}/", f.name);
+           let next;
+           if i != files.len()-1
+           {
+             next = format!("{}│   ", previous);
+           }
+           else {
+            next = format!("{}   ", previous);
+           }
+            print_directory(&f.files.iter().map(|x| x.as_ref()).collect(), &next);
+        }
+        else {
+            println!("{}", f.name);
+        }
+    }
+}
+
+fn print_ls(files:&Vec<FileStruct>)
+{
+    println!("{0: <40} | {1: <10} | {2: <30} | {3: <30} | {4: <10}",
+    "name","size kb", "creation date", "last modificated", "directory");
+    for i in files
+    {
+        println!("{0: <40} | {1: <10} | {2: <30} | {3: <30} | {4: <10}", 
+        i.name, i.size/1024, i.creation_date, i.last_modificated, i.is_directory);
+    }
+}
 
 fn main() {
     let args = Args::parse();
@@ -156,9 +206,7 @@ fn main() {
         },
         Some(Commands::Config { ip_address, config }) =>
         {
-            if ip_address.is_some()
-            {
-                if let Ok(ip) = Ipv4Addr::from_str(ip_address.as_ref().unwrap())
+                if let Ok(ip) = Ipv4Addr::from_str(ip_address)
                 {
 
                     let res = lib::post_config_from_file(&ip, &config);
@@ -175,11 +223,6 @@ fn main() {
                     println!("ip address incorect");
                     return;
                 }
-            }
-            else {
-                println!("ip not found");
-                return;
-            }
         },
         Some(Commands::Tree { ip_address, depth, path }) =>
         {
@@ -195,6 +238,38 @@ fn main() {
             }
             let depth = depth.to_owned().unwrap_or(5);
             let path = path.to_owned().unwrap_or(String::from("/"));
+
+            match lib::tree(&ip, &path, depth)
+            {
+                Ok(res) =>
+                {
+                    print_directory(&res.iter().map(|x| x).collect(), "");
+                }
+                Err(e) => println!("{}", e)
+            }
+
+        },
+        Some(Commands::Ls { ip_address, path }) =>
+        {
+            let ip:Ipv4Addr;
+            if let Ok(ip_ad) = Ipv4Addr::from_str(ip_address.as_ref().unwrap_or(&config.default_ip.to_string()))
+            {
+                ip = ip_ad;
+            }
+            else 
+            {
+                println!("ip address incorect");
+                return;
+            }
+            match lib::tree(&ip, &path, 0) {
+
+                Ok(res) =>
+                {
+                    print_ls(&res);
+                },
+                Err(e) => println!("{}", e)
+                
+            }
         },
         Some(Commands::File { ip_address, command }) =>
         {
@@ -224,6 +299,22 @@ fn main() {
                         }
                     }
                 },
+                FileCommands::Mv {from, to} =>
+                {
+                    match lib::move_file(&ip, from, to)
+                    {
+                        Ok(()) => println!("file moved"),
+                        Err(e) => println!("{}",e)
+                    }
+                },
+                FileCommands::Rm {path} =>
+                {
+                    match lib::delete_file(&ip, path)
+                    {
+                        Ok(()) => println!("file deleted"),
+                        Err(e) => println!("{}",e)
+                    }
+                }
                 _ =>
                 {
                     panic!("command not implemed");
