@@ -1,5 +1,5 @@
 
-use std::{error::Error, fs, io::Write, net::Ipv4Addr, str::FromStr};
+use std::{error::Error, fs, io::{self, Cursor, Read, Write}, net::Ipv4Addr, str::FromStr};
 use::reqwest;
 use reqwest::{Error as ReqError};
 use serde_json;
@@ -178,10 +178,11 @@ pub fn get_file_from_node(address: &Ipv4Addr, from_file:&String, to:&String) -> 
 {
     let client = reqwest::blocking::Client::new();
     let res = client.get(format!("http://{}/file?path={}", address.to_string(), from_file))
-        .send()?.text()?;
+        .send()?.bytes()?;
 
     let mut file = fs::File::create(to)?;
-    file.write_all(res.as_bytes())?;
+    let mut content = Cursor::new(res);
+    io::copy(&mut content, &mut file)?;
     Ok(())
 }
 pub fn get_file(address: &Ipv4Addr, from_file:&String, to:&String)-> Result<(), Box<dyn Error>>
