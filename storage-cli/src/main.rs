@@ -314,6 +314,14 @@ fn main() {
                         Ok(()) => println!("file deleted"),
                         Err(e) => println!("{}",e)
                     }
+                },
+                FileCommands::Get { device_path, local_path } =>
+                {
+                    match lib::get_file(&ip, device_path, local_path)
+                    {
+                        Ok(()) => println!("file downloaded"),
+                        Err(e) => println!("{}",e)
+                    }
                 }
                 _ =>
                 {

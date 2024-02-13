@@ -11,6 +11,6 @@ pub struct Config
 impl Config
 {
    pub fn load() -> Self {
-        Config{ default_ip: Ipv4Addr::new(192, 168, 100, 220)}
+        Config{ default_ip: Ipv4Addr::new(192, 168, 100, 115)}
     }
 }
