@@ -1,4 +1,4 @@
-use std::fs;
+
 use std::net::Ipv4Addr;
 
 static  CONFIG_PATH: &'static str = ".config.yml";

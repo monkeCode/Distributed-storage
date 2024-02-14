@@ -1,5 +1,5 @@
 
-use std::{error::Error, fs, io::{self, Cursor, Read, Write}, net::Ipv4Addr, str::FromStr};
+use std::{error::Error, fs, io::{self, Cursor, Read}, net::Ipv4Addr, str::FromStr};
 use::reqwest;
 use reqwest::{Error as ReqError};
 use serde_json;

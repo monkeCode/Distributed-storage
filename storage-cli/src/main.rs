@@ -1,10 +1,10 @@
 mod lib;
 mod config;
-use std::{array::from_mut, net::Ipv4Addr, str::FromStr};
+use std::{net::Ipv4Addr, str::FromStr};
 use lib::{FileStruct, Info, MemoryInfo};
 use clap::{Parser, Subcommand};
 use config::Config;
-use serde_json::de;
+
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
